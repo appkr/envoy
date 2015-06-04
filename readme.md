@@ -7,7 +7,7 @@ It is envoy script for Laravel5 project. By utilizing this script you can
 
 <a name="how-it-works"></a>
 ## How it works?
-By running the script from your local computer, your production server checkout the latest code from your source repository (e.g. Github), pull the project dependencies, and upon ready, link the current release directory to your webroot directory. In doing so, you will see what is happening on the remote production server through your local computer.
+By running the script from your local computer, your production server checkout the latest code from your source repository (e.g. Github), pull the project dependencies, and upon ready, link the current release directory to your web document root directory. In doing so, you will see what is happening on the remote production server through your local computer.
 
 <a name="how-to-use"></a>
 ## How to use
@@ -34,8 +34,8 @@ $server_group           = 'www-data';
 $web_server             = 'apache2';
 
 // Path
-$base_path              = '/your-webroot';
-$app_path               = '/your-webroot/your-project-path';
+$base_path              = '/your-document-root';
+$app_path               = '/your-document-root/your-project-path';
 ```
 
 Run the script. Before initial attempt, please check you properly set the [requirement](#requirement).
@@ -64,14 +64,14 @@ username ALL=(ALL) NOPASSWD: ALL
 
 To get this script work, you should set the following on respective machine.
 
-&nbsp;|Local computer|Source repository|Production server
----|-:-|-:-|-:-
-Composer[^1]|O| |O
-Npm[^2]| | |O
-Bower[^3]| | |O
-Gulp[^4]| | |O
-Envoy task runner[^5]|O|&nbsp;|&nbsp;
-SSH connection[^6]|to Sourcce respository <br/>to Production server|&nbsp;|to Source repository
+|-|Local computer|Source repository|Production server|
+|---|---|---|---|
+|Composer[^1]|O|-|O|
+|Npm[^2]|-|-|O|
+|Bower[^3]|-|-|O|
+|Gulp[^4]|-|-|O|
+|Envoy task runner[^5]|O|-|-|
+|SSH connection[^6]|to Sourcce respository <br/>to Production server|-|to Source repository|
 
 **`note`** `git` and other required packages are assumed to be installed properly.
 

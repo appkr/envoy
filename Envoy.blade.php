@@ -17,7 +17,7 @@
   $http_host              = 'homestead.vm';
   $server_user            = 'vagrant';
   $server_group           = 'vagrant';
-  $web_server             = 'apache2';
+  $web_server             = 'nginx';
 
   // Production Database
   $db_root_password       = 'root';                                     // Required for initial mysql setup
@@ -27,7 +27,7 @@
 
   // Path at Production Server
   $base_path              = '/home/vagrant/Code';
-  $app_path               = '/home/vagrant/Code/app';
+  $service_path           = '/home/vagrant/Code/myapp';
   $releases_path          = '/home/vagrant/Code/releases';
   $storage_path           = '/home/vagrant/Code/storage';
 
@@ -72,20 +72,16 @@
 @endmacro
 
 @task('add_crontab', ['on' => 'web', 'confirm' => true])
-  echo "+------------------------------------------------------------------------------+";
-  echo "| add_crontab                                                                  |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "add_crontab: adding cron jobs";
 
   cat << EOT | sudo tee -a /var/spool/cron/root
-  * * * * * php {{ $app_path }}/artisan schedule:run 1>> /dev/null 2>&1
+  * * * * * php {{ $service_path }}/artisan schedule:run 1>> /dev/null 2>&1
 @endtask
 
 @task('migrate_db', ['on' => 'web', 'confirm' => true])
-  echo "+------------------------------------------------------------------------------+";
-  echo "| migrate_db                                                                   |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "migrate_db: migrating table schema";
 
-  cd {{ $app_path }};
+  cd {{ $service_path }};
   composer dumpautoload;
   php artisan migrate --force;
   php artisan db:seed --force;
@@ -96,9 +92,7 @@
 #------------------------------------------------------------------------------#
 
 @task('install_server')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| install_server                                                               |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "install_server: installing php, mysql, git, npm, node, memche...";
 
   sudo apt-get update;
   #sudo apt-get install -y --force-yes curl python-software-properties;
@@ -108,27 +102,21 @@
 @endtask
 
 @task('configure_mysql')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| configure_mysql                                                              |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "configure_mysql: setting db password";
 
   sudo debconf-set-selections <<< "mysql-server mysql-server/root_password password {{ $db_root_password }}";
   sudo debconf-set-selections <<< "mysql-server mysql-server/root_password_again password {{ $db_root_password }}";
 @endtask
 
 @task('create_db')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| create_db                                                                    |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "create_db: creating database";
 
   mysql -uroot -p{{ $db_root_password }} -e "DROP DATABASE IF EXISTS {{ $db_database }}";
   mysql -uroot -p{{ $db_root_password }} -e "CREATE DATABASE {{ $db_database }} DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_unicode_ci";
 @endtask
 
 @task('create_db_user')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| create_db_user                                                               |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "create_db_user: adding new database user";
 
   mysql -uroot -p{{ $db_root_password }} -e "use mysql";
   mysql -uroot -p{{ $db_root_password }} -e "create user {{ $db_username }}";
@@ -138,9 +126,7 @@
 @endtask
 
 @task('configure_php')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| configure_php                                                                |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "configure_php: setting php. error_reporting, display_errors, ...";
 
   sed -i "s/error_reporting = .*/error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT/" /etc/php5/{{ $web_server }}/php.ini;
   sed -i "s/display_errors = .*/display_errors = Off/" /etc/php5/{{ $web_server }}/php.ini;
@@ -153,16 +139,14 @@
 @endtask
 
 @task('configure_apache2')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| configure_apache2                                                            |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "configure_apache2: setting apache2. enable rewrite module, set document root, ...";
 
   sudo a2enmod rewrite;
 
   block="
 <VirtualHost *:80>
-  DocumentRoot {{ $app_path }}/public
-  <Directory {{ $app_path }}/public>
+  DocumentRoot {{ $service_path }}/public
+  <Directory {{ $service_path }}/public>
   Options -Indexes +FollowSymLinks +MultiViews
   AllowOverride All
   Order allow,deny
@@ -177,11 +161,9 @@
 @endtask
 
 @task('configure_apache2_ssl')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| configure_apache2_ssl                                                        |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "configure_apache2_ssl: setting openssl certificate for apache2";
 
-  mkdir /etc/apache2/ssl;
+  sudo mkdir /etc/apache2/ssl;
   openssl genrsa -out "/etc/apache2/ssl/{{ $http_host }}.key" 1024 2>/dev/null;
   openssl req -new -key /etc/apache2/ssl/{{ $http_host }}.key -out /etc/apache2/ssl/{{ $http_host }}.csr -subj "/CN={{ $http_host }}/O=DevPortal/C=KR" 2>/dev/null;
   openssl x509 -req -days 365 -in /etc/apache2/ssl/{{ $http_host }}.csr -signkey /etc/apache2/ssl/{{ $http_host }}.key -out /etc/apache2/ssl/{{ $http_host }}.crt 2>/dev/null;
@@ -189,8 +171,8 @@
   block="
 <IfModule mod_ssl.c>
   <VirtualHost _default_:443>
-    DocumentRoot {{ $app_path }}/public
-    <Directory {{ $app_path }}/public>
+    DocumentRoot {{ $service_path }}/public
+    <Directory {{ $service_path }}/public>
     Options -Indexes +FollowSymLinks +MultiViews
     AllowOverride All
     Order allow,deny
@@ -214,14 +196,12 @@
 @endtask
 
 @task('configure_nginx')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| configure_nginx                                                              |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "configure_nginx: setting nginx. set document root, ...";
 
   block="server {
   listen ${3:-80};
   server_name {{ $http_host }};
-  root \"{{ $app_path }}/public\";
+  root \"{{ $service_path }}/public\";
   index index.html index.htm index.php;
   charset utf-8;
   location / {
@@ -255,26 +235,20 @@
 @endtask
 
 @task('install_composer')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| install_composer                                                             |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "install_composer: installing composer to /usr/local/bin/";
 
   sudo curl -sS https://getcomposer.org/installer | php;
   sudo mv composer.phar /usr/local/bin/composer;
 @endtask
 
 @task('install_bower_gulp')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| install_bower_gulp                                                           |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "install_bower_gulp: installing bower and gulp";
 
   sudo npm install -g bower gulp;
 @endtask
 
 @task('make_release_path')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| make_release_path                                                            |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "make_release_path: making a directory for housing of the releases";
 
   if [ ! -d {{ $releases_path }} ]; then
     mkdir {{ $releases_path }};
@@ -284,149 +258,127 @@
 @endtask
 
 @task('fetch_repo')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| fetch_repo                                                                   |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "fetch_repo: pulling the latest code from git";
 
   cd {{ $releases_path }};
-  git clone -b {{ $branch }} {{ $repo }} {{ $release_name }};
+  if [ ! -d {{ $releases_path }}/{{ $release_name }} ]; then
+    git clone -b {{ $branch }} {{ $repo }} {{ $release_name }};
+  else
+    cd {{ $releases_path }}/{{ $release_name }};
+    git pull;
+  fi;
 @endtask
 
 @task('set_commons')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| set_commons                                                                  |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "set_commons: creating storage folder and .env file";
 
   if [ ! -f {{ $base_path }}/.env ]; then
-    cp {{ $releases_path }}/{{ $release_name }}/.env {{ $base_path }}/.env;
+    wget https://raw.githubusercontent.com/laravel/laravel/master/.env.example;
+    mv {{ $base_path }}/.env.example {{ $base_path }}/.env;
     sed -i "s/APP_ENV=.*/APP_ENV=production/" {{ $base_path }}/.env;
     sed -i "s/APP_DEBUG=.*/APP_DEBUG=false/" {{ $base_path }}/.env;
+    sed -i "s/DB_DATABASE=.*/DB_DATABASE={{ $db_database }}/" {{ $base_path }}/.env;
+    sed -i "s/DB_USERNAME=.*/DB_USERNAME={{ $db_username }}/" {{ $base_path }}/.env;
+    sed -i "s/DB_PASSWORD=.*/DB_PASSWORD={{ $db_password }}/" {{ $base_path }}/.env;
   fi;
 
-  if [ ! -d {{ $base_path }}/storage ]; then
-    cp -R {{ $releases_path }}/{{ $release_name }}/storage {{ $base_path }};
-    sudo chmod -R 777 {{ $storage_path }}
+  if [ ! -d {{ $storage_path }} ]; then
+    mkdir {{ $storage_path }} && cd {{ $storage_path }};
+    mkdir app framework logs framework/cache framework/sessions framework/views;
+    sudo chmod -R 777 {{ $storage_path }};
   fi;
 @endtask
 
 @task('run_composer')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| run_composer                                                                 |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "run_composer: installing project dependencies";
 
-  composer self-update;
+  sudo composer self-update;
   cd {{ $releases_path }}/{{ $release_name }};
   mkdir vendor;
   sudo chmod -R 777 vendor;
-  composer install --no-dev --no-scripts;
+  composer install --no-dev --no-scripts --verbose;
   php artisan clear-compiled --env=production;
   php artisan optimize --env=production;
 @endtask
 
-@task('update_namespace')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| update_namespace                                                             |";
-  echo "+------------------------------------------------------------------------------+";
-
-  cd {{ $app_path }};
-  php artisan app:name Appkr;
-@endtask
-
 @task('run_npm')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| run_npm                                                                      |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "run_npm: installing required node packages";
 
   cd {{ $releases_path }}/{{ $release_name }};
   sudo npm install;
 @endtask
 
 @task('run_bower')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| run_bower                                                                    |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "run_bower: installing required external resources (js/css)";
 
   cd {{ $releases_path }}/{{ $release_name }};
   bower install;
 
   # install missing components in bower repository
   #cd {{ $releases_path }}/{{ $release_name }}/resources/vendor/bootswatch-scss;
-  #mkdir sandstone && cd sandstone;
+  #sudo mkdir sandstone && cd sandstone;
   #wget https://raw.githubusercontent.com/log0ymxm/bootswatch-scss/master/sandstone/_bootswatch.scss;
   #wget https://raw.githubusercontent.com/log0ymxm/bootswatch-scss/master/sandstone/_variables.scss;
-
-  # edit bug which is not fixed bower repository
-  #sed -i 'currentTextArea.className += .*/currentTextArea.className = (currentTextArea.className + " widearea").replace(/^\s+|\s+$/g, "");' {{ $app_path }}/resources/vendor/widearea/widearea.js;
 @endtask
 
 @task('run_gulp')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| run_gulp                                                                     |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "run_gulp: builing resources";
 
   cd {{ $releases_path }}/{{ $release_name }};
   gulp --production;
 @endtask
 
 @task('update_release_permissions')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| update_release_permissions                                                   |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "update_release_permissions: chaning ownership of this release to current user";
 
-  sudo chown {{ $server_user }}:{{ $server_group }} {{ $releases_path }}/{{ $release_name }};
+  sudo chown -R {{ $server_user }}:{{ $server_group }} {{ $releases_path }}/{{ $release_name }};
 @endtask
 
 @task('update_release_symlinks')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| update_release_symlinks                                                      |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "update_release_symlinks: linking this release to the service";
 
-  ln -nfs {{ $releases_path }}/{{ $release_name }} {{ $app_path }};
-  sudo chown {{ $server_user }}:{{ $server_group }} {{ $app_path }};
+  ln -nfs {{ $releases_path }}/{{ $release_name }} {{ $service_path }};
 
-  rm -rf {{ $releases_path }}/{{ $release_name }}/storage;
+  if [ -d {{ $releases_path }}/{{ $release_name }}/storage ]; then
+    rm -rf {{ $releases_path }}/{{ $release_name }}/storage;
+  fi;
 
   cd {{ $releases_path }}/{{ $release_name }};
 
   ln -nfs {{ $storage_path }} storage;
-  sudo chown {{ $server_user }}:{{ $server_group }} storage;
-  sudo chmod -R 777 storage;
+  #sudo chown -R {{ $server_user }}:{{ $server_group }} storage;
+  #sudo chmod -R 777 storage;
 
-  rm .env;
+  if [ -f {{ $releases_path }}/{{ $release_name }}/.env ]; then
+    rm .env;
+  fi;
+
   ln -nfs {{ $base_path }}/.env .env;
-  sudo chown {{ $server_user }}:{{ $server_group }} .env;
+  #sudo chown {{ $server_user }}:{{ $server_group }} .env;
+
+  sudo chown -R {{ $server_user }}:{{ $server_group }} {{ $service_path }};
 @endtask
 
 @task('restart_webserver')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| restart_webserver                                                            |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "restart_webserver: restarting web";
 
   sudo service {{ $web_server }} restart;
 @endtask
 
 @task('restart_mysql')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| restart_mysql                                                                |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "restart_mysql: restarting database";
 
   sudo service mysql.server restart;
 @endtask
 
 @task('register_queue_worker')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| register_queue_worker                                                        |";
-  echo "+------------------------------------------------------------------------------+";
+  echo "register_queue_worker: add new queue subscriber";
 
   #set your queue listener
-  #php {{ $app_path }}/artisan queue:subscribe ...;
+  #php {{ $service_path }}/artisan queue:subscribe ...;
 @endtask
 
 @task('report')
-  echo "+------------------------------------------------------------------------------+";
-  echo "| report                                                                       |";
-  echo "+------------------------------------------------------------------------------+";
-
   echo "All done.";
 
   #{{--@after--}}
