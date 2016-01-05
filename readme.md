@@ -1,137 +1,121 @@
-<a name="introduction"></a>
-# What is this? What for?
-It is envoy script for Laravel5 project. By utilizing this script you can
+# Envoy Use Case Demo
 
-- Achieve zero down time of your Laravel-based service
-- Maintain release history by not overwriting the previous release
+## What is this? What for?
 
-<a name="how-it-works"></a>
-## How it works?
-By running the script from your local computer, your production server checkout the latest code from your source repository (e.g. Github), pull the project dependencies, and upon ready, link the current release directory to your web document root directory. In doing so, you will see what is happening on the remote production server through your local computer.
+[Envoy is a SSH task runner](https://laravel.com/docs/5.2/envoy) written in PHP language. **Was born in Laravel world, but can be applicable any framework or language.** This repository is an envoy script, that demos the usefulness of the Envoy.
 
-<a name="how-to-use"></a>
-## How to use
-Install the script in your Laravel5 project.
+This repository poses a strategy that lowers the headache of code deployment to the production server. By adopting this strategy, you can:
 
-```
-// at your local computer
+1.  achieve zero down time of the service
+2.  maintain release histories (by not overwriting the previous release)
 
-cd your-laravel-project-root
-wget https://raw.githubusercontent.com/appkr/envoy/master/Envoy.blade.php
-```
+To do that, the script takes `git clone` strategy rather than `git pull or git fetch`. Once the clone is done, the script symlinks the current clone to the document root.
 
-Open up the downloaded script, edit configuration values to fit your project.
+This script may not fit your project needs at 100% though, I bet you get the idea what to do next.
 
-```
-// Envoy.blade.php
+## Install envoy executable and recipe
 
-@servers(['web' => 'your-production-server.com'])
+#### **Step #1** You need an envoy `laravel/envoy` executable 
 
-@setup
-// Server
-$server_user            = 'www-data';
-$server_group           = 'www-data';
-$web_server             = 'apache2';
+This is an one time process.
 
-// Path
-$base_path              = '/your-document-root';
-$app_path               = '/your-document-root/your-project-path';
+```bash
+$ composer global require "laravel/envoy=~1.0"
+$ envoy --version # Laravel Envoy version x.x.x
 ```
 
-Run the script. Before initial attempt, please check you properly set the [requirement](#requirement).
-```
-// at your local computer
+**`Note`** Make sure to place the `~/.composer/vendor/bin` directory in your `PATH` so the `envoy` executable is found when you run the `envoy` command in your terminal.
 
-cd your-laravel-project-root
-envoy run release
-```
+#### **Step #2** Download the recipe scripts into your project
 
-<a name="commands"></a>
-## Avaliable Commands?
-- **release** : Publish new release to the production server
-- **hello_envoy** : Check ssh connection to the production server
-- **server_provision** : Prepare the production server (e.g. install LAMP, composer, ...)
-- **migrate_db** : Initialize production database, table and seed data
-- **add_crontab** : Add crontab entry on the production server
+`envoy.blade.php` and its associated files should be placed in every project.
 
-<a name="requirement"></a>
-## Requirement
-Lots of shell commands included in this script requires `sudo` priviledge. If you encounter error message like `sudo: no tty present and no askpass program specified`, you can work around the error by adding the following line on your production server's `/etc/sudoers` file.
-```
-// /etc/sudoers
-username ALL=(ALL) NOPASSWD: ALL
+```bash
+# at your local computer
+
+$ cd project
+$ wget https://raw.githubusercontent.com/appkr/envoy/master/envoy.blade.php
+$ wget https://raw.githubusercontent.com/appkr/envoy/master/envoy.config.php.example -O envoy.config.php
 ```
 
-To get this script work, you should set the following on respective machine.
+#### **Step #3** Configure your value
 
-|-|Local computer|Source repository|Production server|
-|---|---|---|---|
-|Composer[^1]|O|-|O|
-|Npm[^2]|-|-|O|
-|Bower[^3]|-|-|O|
-|Gulp[^4]|-|-|O|
-|Envoy task runner[^5]|O|-|-|
-|SSH connection[^6]|to Sourcce respository <br/>to Production server|-|to Source repository|
+`envoy.config.php` was devised to avoid committing the sensitive information (e.g. github token) to the version control. Even though envoy runs on local machine, sometimes the `envoy.blade.php` script need to be shared across team. In that case, the `envoy.config.php` comes in handy. So, the file should be included in the `.gitignore` list. 
 
-**`note`** `git` and other required packages are assumed to be installed properly.
+Open it up and set your value. Each variable is [self-explanatory and inline commented](https://github.com/appkr/envoy/blob/master/envoy.config.php.example). 
 
-[^1]: 
-  [Composer](https://getcomposer.org/) is a php dependency manager.
-  
-  ```
-  sudo curl -sS https://getcomposer.org/installer | php
-  sudo mv composer.phar /usr/local/bin/composer
-  composer --version
-  ```
+##### Accessing config at Envoy script
 
-[^2]: 
-  [Npm](https://nodejs.org/) is a node package manager.
-  
-  ```
-  sudo apt-get install -y --force-yes npm nodejs-legacy
-  npm --version
-  ```
+Use dot(`.`) to access the sub items.
 
-[^3]: 
-  [Bower](http://bower.io/) is a package manager for javascript/css.
-  
-  ```
-  sudo npm install -g bower
-  bower --version
-  ```
+```php
+// envoy.blade.php
 
-[^4]: 
-  [Gulp](http://gulpjs.com/) is a build automation tool.
-  
-  ```
-  sudo npm install -g gulp
-  gulp --version
-  ```
+@task('fetch_repo', ['on' => 'web'])
+  cd {{ config('path.release') }}; // to get the value of $configurations['path']['release']
+  ls -al;
+@endtask
+```
 
-[^5]: 
-  [Envoy](https://github.com/laravel/envoy) is a SSH task runner.
-  ```
-  composer global require "laravel/envoy=~1.0"
-  export PATH=$PATH:~/.composer/vendor/bin
-  envoy --version
-  ```
+## **Step #4** Install keys
 
-[^6]: 
-  `envoy` is a SSH task runner, which means you should have a valid ssh connection from your local computer to the production server against which you want to run the `envoy` script. And your production server should have a valid ssh connection to the git source repository to checkout the latest source code of your project. The easiest way to achieve this at your local and production side is adding following entry to `~/.ssh/config`:
-  
-  ```
-  // ~/.ssh/config at your local computer
-  Host alias-of-the-server
-      Hostname your-production-server.com
-      User ssh-username
-      IdentityFile path-to-ssh-key
-  
-  // ~/.ssh/config at your production server
-  Host git-repo-alias
-      Hostname git-repo-url
-      User git-username
-      IdentityFile path-to-ssh-key
-  ```
+Considering the deployment process, servers must be able to talk each other. On your local machine, you push the code to the version control server. Then you publish `$ envoy run deploy` task at your local machine (task will propagated to the production server through the ssh). Then the production server clones the code from the version control server.   
+
+-   on local machine, there should be:
+    - ssh private key to connect to the production server
+    - ssh private key to connect to the version control server <sup>(1)</sup>
+-   on production server, there should be:
+    - ssh public key to authenticate the local machine 
+    - ssh private key to connect to the version control server (Can be same as <sup>(1)</sup>)
+    
+**`Note`** Before you run the first deployment using envoy, you have to update `~/.ssh/known_hosts` by ssh-ing into the production server and connect to github once. `$ ssh -T git@github.com`. See [this page](https://help.github.com/articles/generating-ssh-keys/).
+
+## **Step #5** Run the first envoy tank
+
+```bash
+$ envoy run hello
+# [my_host_name]: Hello Envoy! Responding from my_host_name
+```
+
+## **Step #6** Customize your envoy script
+
+If your project is relying on composer, putting `composer` and `prune` task in the macro is recommended.
+
+```php
+@macro('deploy', ['on' => 'web', 'confirm' => true])
+  //...
+  permissions
+  composer
+  prune
+@endmacro
+```
+
+The following is the structure of this project.
+
+```bash
+.
+├── composer.json             // dummy dependency to demo ($ envoy run composer) 
+├── envoy.blade.php           // envoy script
+├── envoy.config.php.example  // example configuration
+├── public
+│   └── index.html            // landing page just for demo
+├── scripts
+│   ├── provision.sh          // script for server provision
+│   ├── prune_release.php     // script to remove old releases ($ envoy run prune)
+│   └── serve.sh              // script for setting nginx sites 
+└── vendor                    // dummy dependency to demo ($ envoy run composer)
+    ├── autoload.php
+    └── composer
+```
+
+## Todo
+
+-   Implement 'rollback' task
+-   Accept multiple server in configuration
+
+## License
+
+MIT
 
 
 

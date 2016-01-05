@@ -1,0 +1,51 @@
+<?php
+
+$configurations = [
+    'server'  => [
+        'user'   => 'username', // account name to be used for deployment. e.g. deployer
+        'group'  => 'www-data', // keep it as it is
+        'host'   => 'my_host_name', // e.g. xxx.xxx.xxx.xxx, example.com, local.dev
+        'domain' => 'my_domain_name', // e.g. xxx.xxx.xxx.xxx, www.example.com, test.local.dev
+    ],
+    'path'    => [
+        'home'    => '/home/username', // replace 'username'. e.g. deployer
+        'web'     => '/home/username/www', // replace 'username'
+        'base'    => '/home/username/www/your_domain_name', // replace 'username' and 'your_domain_name'. e.g. www.example.com
+        'shared'  => '/home/username/www/shared', // keep it as it is
+        'release' => '/home/username/www/releases', // keep it as it is
+    ],
+    'release' => [
+        'name' => 'release_' . date('YmdHis'), // keep it as it is
+        'keep' => 3, // keep last 3 releases. this will used with ($envoy run prune)
+    ],
+    'git'     => [
+        'repo'  => 'your_github_repository_path', // e.g. git@github.com:account/project.git
+        // @see https://github.com/settings/tokens
+        // It is required to avoid rate limit while running composer install.
+        'token'  => 'your_github_personal_access_token', // e.g. 0d5b9ec5f04431eg15f9932662335g3268415138
+    ],
+];
+
+/* DO NOT TOUCH BELOW, UNLESS YOU KNOW WHAT YOU ARE DOING */
+
+$GLOBALS['config'] = dot($configurations);
+
+function dot($array, $prepend = '')
+{
+    $results = [];
+
+    foreach ($array as $key => $value) {
+        if (is_array($value)) {
+            $results = array_merge($results, dot($value, $prepend . $key . '.'));
+        } else {
+            $results[$prepend . $key] = $value;
+        }
+    }
+
+    return $results;
+}
+
+function config($key)
+{
+    return $GLOBALS['config'][$key];
+}

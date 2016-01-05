@@ -1,0 +1,12 @@
+{
+    "name": "appkr/envoy",
+    "description": "Envoy use case demo",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "appkr",
+            "email": "juwonkim@me.com"
+        }
+    ]
+}
