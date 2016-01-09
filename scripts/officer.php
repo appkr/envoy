@@ -1,10 +1,16 @@
 #! /usr/bin/env php
 <?php
 
-function dd($var)
-{
-    die(var_dump($var));
-}
+/**
+ * Part of the appkr/envoy package.
+ *
+ *
+ * @package    appkr/envoy
+ * @version    2.0.8
+ * @author     appkr <juwonkim@me.com>
+ * @license    MIT
+ * @copyright  (c) 2016, Juwon Kim
+ */
 
 /**
  * Class Officer

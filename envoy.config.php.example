@@ -1,69 +1,76 @@
 <?php
 
+/**
+ * Sometimes, separating Envoy script form its config comes in handy in a situation,
+ * where we want not to disclose the sensitive information.
+ * Using this approach, we can add this config to the ignore list of version control.
+ *
+ * Once we can include this file, in the envoy.blade.php
+ *     <?php include(__DIR__ . '/./envoy.config.php'); >
+ * Then, the config var can be accessible using config() helper and dot(.) syntax.
+ *     echo {{ config('server.host') }};
+ */
+
 $conf = [
-    'server'  => [
-        // Account name to be used for deployment. e.g. deployer
-        'user'   => 'username',
 
-         // Leave it as it is
-        'group'  => 'www-data',
-
-         // e.g. xxx.xxx.xxx.xxx, example.com, local.dev
-        'host'   => 'my_host_name',
-
-        // e.g. xxx.xxx.xxx.xxx, www.example.com, test.local.dev
-        'domain' => 'my_domain_name',
+    'server' => [
+        'host' => 'aws-seoul-deploy',
     ],
-    'path'    => [
-        // Replace username. e.g. deployer
-        'home'    => '/home/username',
 
-        'web'     => '/home/username/www',
-
-        // Document root of the web server
-        'base'    => '/home/username/www/my_domain_name',
-
-        // Shared directory, that should be symlinked under the document root
-        // Having multiple shared dirs? add more and edit the envoy.blade.php
-        'shared'  => '/home/username/www/shared',
-
-        // Housing that will hold releases
-        'release' => '/home/username/www/releases',
+    'path'        => [
+        'base'    => '/home/deployer/web',
+        'docroot' => '/home/deployer/web/envoy.appkr.kr',
+        'shared'  => '/home/deployer/web/shared',
+        'release' => '/home/deployer/web/releases',
     ],
-    'release' => [
-        // Leave it as it is
+
+    'required_dirs' => [
+        '/home/deployer/web',
+        '/home/deployer/web/shared',
+        '/home/deployer/web/releases',
+    ],
+
+    'shared_item' => [
+        ['/home/deployer/web/shared/.env' => '.env'],
+        ['/home/deployer/web/shared/storage' => 'storage'],
+        ['/home/deployer/web/shared/cache' => 'bootstrap/cache'],
+        ['/home/deployer/web/shared/attachments' => 'public/attachments'],
+    ],
+
+    'distribution' => [
         'name' => 'release_' . date('YmdHis'),
     ],
-    'git'     => [
-        // e.g. git@github.com:account/project.git
-        'repo'  => 'your_github_repository_path',
+
+    'git' => [
+        'repo' => 'git@github.com:appkr/envoy.git',
     ],
 ];
 
 /* DO NOT TOUCH BELOW, UNLESS YOU KNOW WHAT YOU ARE DOING */
 
-$GLOBALS['config'] = dot($conf);
-
 /**
- * Flatten the given array using dot(.).
+ * Get an item from an array using "dot" notation.
  *
- * @param array $array
- * @param string $prepend
- * @return array
+ * @param  array  $array
+ * @param  string $key
+ * @param  mixed  $default
+ * @return mixed
  */
-function dot($array, $prepend = '')
+function get($array, $key, $default = null)
 {
-    $results = [];
-
-    foreach ($array as $key => $value) {
-        if (is_array($value)) {
-            $results = array_merge($results, dot($value, $prepend . $key . '.'));
-        } else {
-            $results[$prepend . $key] = $value;
-        }
+    if (isset($array[$key])) {
+        return $array[$key];
     }
 
-    return $results;
+    foreach (explode('.', $key) as $segment) {
+        if (! is_array($array) || ! array_key_exists($segment, $array)) {
+            return $default;
+        }
+
+        $array = $array[$segment];
+    }
+
+    return $array;
 }
 
 /**
@@ -74,5 +81,7 @@ function dot($array, $prepend = '')
  */
 function config($key)
 {
-    return $GLOBALS['config'][$key];
+    global $conf;
+
+    return get($conf, $key);
 }

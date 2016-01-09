@@ -6,20 +6,45 @@
 # hello     Check ssh connection
 # release   Publish new release
 # list      Show list of releases
-# rollback  Rollback to the given release (must provide --release=/path/to/release)
-# prune     Purge old releases (must provide --release=n, where n is a number)
+# checkout  Checkout to the given release (must provide --release=/path/to/release)
+# prune     Purge old releases (must provide --keep=n, where n is a number)
+#
+#--------------------------------------------------------------------------
+# Note that the server shoulbe be accessible through ssh with 'username' account
+# $ ssh username@hostname
+#--------------------------------------------------------------------------
 #
 
-# @include not work! So resorted back to traditional way~.
-<?php include(__DIR__ . '/./envoy.config.php'); ?>
-
-
-@servers(['web' => config('server.domain')])
+@servers(['web' => 'aws-seoul-deploy'])
 
 
 @setup
-  /* Directories to make */
-  $directories = [config('path.web'), config('path.shared'), config('path.release')];
+  $path = [
+    'base' => '/home/deployer/web',
+    'docroot' => '/home/deployer/web/envoy.appkr.kr',
+    'shared' => '/home/deployer/web/shared',
+    'release' => '/home/deployer/web/releases',
+  ];
+
+  $required_dirs = [
+    $path['base'],
+    $path['shared'],
+    $path['release'],
+  ];
+
+  $shared_item = [
+    '/home/deployer/web/shared/.env' => '.env',
+    '/home/deployer/web/shared/storage' => 'storage',
+    '/home/deployer/web/shared/cache' => 'cache',
+  ];
+
+  $distribution = [
+    'name' => 'release_' . date('YmdHis'),
+  ];
+
+  $git = [
+    'repo' => 'git@github.com:appkr/envoy.git',
+  ];
 @endsetup
 
 
@@ -31,42 +56,46 @@
 
 @task('release', ['on' => ['web']])
   {{--Create directories if not exists--}}
-  @foreach ($directories as $dir)
-    if [ ! -d {{$dir}} ]; then
+  @foreach ($required_dirs as $dir)
+    if [ ! -d {{ $dir }} ]; then
       mkdir {{ $dir }};
       chgrp -h -R www-data {{ $dir }};
     fi;
   @endforeach
 
   {{--Download book keeping officer--}}
-  if [ ! -f {{ config('path.web') }}/officer.php ]; then
-    wget https://raw.githubusercontent.com/appkr/envoy/master/scripts/officer.php -O {{ config('path.web') }}/officer.php;
+  if [ ! -f {{ $path['base'] }}/officer.php ]; then
+    wget https://raw.githubusercontent.com/appkr/envoy/master/scripts/officer.php -O {{ $path['base'] }}/officer.php;
   fi;
 
   {{--Fetch code from git--}}
-  cd {{ config('path.release') }};
-  git clone -b master {{ config('git.repo') }} {{ config('release.name') }};
-
-  {{--Run composer install--}}
-  cd {{ config('path.release') }}/{{ config('release.name') }};
-  composer install --prefer-dist --no-scripts;
-  {{--composer after-install script here--}}
-  {{--your custom command here--}}
+  cd {{ $path['release'] }};
+  git clone -b master {{ $git['repo'] }} {{ $distribution['name'] }};
 
   {{--Symlink shared directory to current release.--}}
   {{--e.g. storage, .env, user uploaded file storage, ...--}}
-  ln -nfs {{ config('path.shared') }} shared;
-  chgrp -h -R www-data shared;
+  cd {{ $path['release'] }}/{{ $distribution['name'] }};
+  @foreach($shared_item as $global => $local)
+    [ -f {{ $local }} ] && rm {{ $local }};
+    [ -d {{ $local }} ] && rm -rf {{ $local }};
+    ln -nfs {{ $global }} {{ $local }};
+    chgrp -h -R www-data {{ $local }};
+  @endforeach
+
+  {{--Run composer install--}}
+  composer install --prefer-dist --no-scripts;
+  {{--Any additional command here--}}
+  {{--e.g. php artisan clear-compiled;--}}
 
   {{--Symlink current release to service directory.--}}
-  ln -nfs {{ config('path.release') }}/{{ config('release.name') }} {{ config('path.base') }};
-  chgrp -h -R www-data {{ config('path.base') }};
+  ln -nfs {{ $path['release'] }}/{{ $distribution['name'] }} {{ $path['docroot'] }};
+  chgrp -h -R www-data {{ $path['docroot'] }};
 
   {{--Set permission and change owner. Do one final more for safety.--}}
-  chgrp -h -R www-data {{ config('path.release') }}/{{ config('release.name') }};
+  chgrp -h -R www-data {{ $path['release'] }}/{{ $distribution['name'] }};
 
   {{--Book keeping--}}
-  php {{ config('path.web') }}/officer.php deploy {{ config('path.release') }}/{{ config('release.name') }};
+  php {{ $path['base'] }}/officer.php deploy {{ $path['release'] }}/{{ $distribution['name'] }};
 
   {{--Restart web server.--}}
   {{--service nginx restart;--}}
@@ -75,14 +104,14 @@
 
 
 @task('prune', ['on' => 'web'])
-  if [ ! -f {{ config('path.web') }}/officer.php ]; then
+  if [ ! -f {{ $path['base'] }}/officer.php ]; then
     echo '"officer.php" script not found.';
     echo '\$ envoy run hire_officer';
     exit 1;
   fi;
 
   @if (isset($keep) and $keep > 0)
-    php {{ config('path.web') }}/officer.php prune {{ $keep }};
+    php {{ $path['base'] }}/officer.php prune {{ $keep }};
   @else
     echo 'Must provide --keep=n, where n is a number.';
   @endif
@@ -91,26 +120,26 @@
 
 @task('hire_officer', ['on' => 'web'])
   {{--Download "officer.php" to the server--}}
-  wget https://raw.githubusercontent.com/appkr/envoy/master/scripts/officer.php -O {{ config('path.web') }}/officer.php;
+  wget https://raw.githubusercontent.com/appkr/envoy/master/scripts/officer.php -O {{ $path['base'] }}/officer.php;
   echo '"officer.php" is ready!';
 @endtask
 
 
 @task('list', ['on' => 'web'])
   {{--Show the list of release--}}
-  if [ ! -f {{ config('path.web') }}/officer.php ]; then
+  if [ ! -f {{ $path['base'] }}/officer.php ]; then
     echo '"officer.php" script not found.';
     echo '\$ envoy run hire_officer';
     exit 1;
   fi;
 
-  php {{ config('path.web') }}/officer.php list;
+  php {{ $path['base'] }}/officer.php list;
 @endtask
 
 
-@task('rollback', ['on' => 'web'])
-  {{--Rollback to the given release path--}}
-  if [ ! -f {{ config('path.web') }}/officer.php ]; then
+@task('checkout', ['on' => 'web'])
+  {{--checkout to the given release path--}}
+  if [ ! -f {{ $path['base'] }}/officer.php ]; then
     echo '"officer.php" script not found.';
     echo '\$ envoy run hire_officer';
     exit 1;
@@ -120,15 +149,19 @@
     cd {{ $release }};
 
     {{--Symlink shared directory to the given release.--}}
-    ln -nfs {{ config('path.shared') }} shared;
-    chgrp -h -R www-data shared;
+    @foreach($shared_item as $global => $local)
+      [ -f {{ $local }} ] && rm {{ $local }};
+      [ -d {{ $local }} ] && rm -rf {{ $local }};
+      ln -nfs {{ $global }} {{ $local }};
+      chgrp -h -R www-data {{ $local }};
+    @endforeach
 
     {{--Symlink the given release to service directory.--}}
-    ln -nfs {{ $release }} {{ config('path.base') }};
-    chgrp -h -R www-data {{ config('path.base') }};
+    ln -nfs {{ $release }} {{ $path['docroot'] }};
+    chgrp -h -R www-data {{ $path['docroot'] }};
 
     {{--Book keeping--}}
-    php {{ config('path.web') }}/officer.php checkout {{ $release }};
+    php {{ $path['base'] }}/officer.php checkout {{ $release }};
 
     {{--Restart web server.--}}
     {{--service nginx restart;--}}
