@@ -8,28 +8,30 @@
 #--------------------------------------------------------------------------
 #
 # Get sudo permission.
-# $ sudo -s
+#   $ sudo -s
 #
 # Add User and group.
-# # adduser deployer
-# # usermod -G www-data deployer
-#
-# $ id deployer
-# $ groups www-data
-#
-# Run.
-# # ./provision.sh deployer
+#   # adduser deployer
+#   # usermod -G www-data deployer
+#   # id deployer
+#   # groups www-data
 #
 # TROUBLESHOOTING.
 #
-# If you encounter error message like "sudo: no tty present
-# and no askpass program specified ...", you can work around this error
-# by adding the following line on your production server's /etc/sudoers.
+#   If you encounter error message like "sudo: no tty present
+#   and no askpass program specified ...", you can work around this error
+#   by adding the following line on your production server's /etc/sudoers.
 #
-# $ sudo visudo
+#   # visudo
 #
-# deployer ALL=(ALL:ALL) NOPASSWD: ALL
-# %www-data ALL=(ALL:ALL) NOPASSWD:/usr/sbin/service php5-fpm restart,...
+#   deployer ALL=(ALL:ALL) NOPASSWD: ALL
+#   %www-data ALL=(ALL:ALL) NOPASSWD:/usr/sbin/service php5-fpm restart,/usr/sbin/service nginx restart
+#
+#--------------------------------------------------------------------------
+# How to run
+#--------------------------------------------------------------------------
+#
+#   # bash provision.sh deployer password
 #
 
 if [[ -z "$1" ]]
@@ -42,6 +44,7 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 USERNAME=$1
+PASSWD=$2
 
 # Update Package List
 
@@ -230,8 +233,8 @@ apt-get install -y --force-yes sqlite3 libsqlite3-dev
 # Install MySQL
 
 debconf-set-selections <<< "mysql-community-server mysql-community-server/data-dir select ''"
-debconf-set-selections <<< "mysql-community-server mysql-community-server/root-pass password secret"
-debconf-set-selections <<< "mysql-community-server mysql-community-server/re-root-pass password secret"
+debconf-set-selections <<< "mysql-community-server mysql-community-server/root-pass password ${PASSWD}"
+debconf-set-selections <<< "mysql-community-server mysql-community-server/re-root-pass password ${PASSWD}"
 apt-get install -y --force-yes mysql-server
 
 # Configure MySQL Password Lifetime
@@ -242,19 +245,19 @@ echo "default_password_lifetime = 0" >> /etc/mysql/my.cnf
 
 sed -i '/^bind-address/s/bind-address.*=.*/bind-address = 0.0.0.0/' /etc/mysql/my.cnf
 
-mysql --user="root" --password="secret" -e "GRANT ALL ON *.* TO root@'0.0.0.0' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
+mysql --user="root" --password="${PASSWD}" -e "GRANT ALL ON *.* TO root@'0.0.0.0' IDENTIFIED BY '${PASSWD}' WITH GRANT OPTION;"
 service mysql restart
 
-mysql --user="root" --password="secret" -e "CREATE USER '${USERNAME}'@'0.0.0.0' IDENTIFIED BY 'secret';"
-mysql --user="root" --password="secret" -e "GRANT ALL ON *.* TO '${USERNAME}'@'0.0.0.0' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
-mysql --user="root" --password="secret" -e "GRANT ALL ON *.* TO '${USERNAME}'@'%' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
-mysql --user="root" --password="secret" -e "FLUSH PRIVILEGES;"
-mysql --user="root" --password="secret" -e "CREATE DATABASE ${USERNAME};"
+mysql --user="root" --password="${PASSWD}" -e "CREATE USER '${USERNAME}'@'0.0.0.0' IDENTIFIED BY '${PASSWD}';"
+mysql --user="root" --password="${PASSWD}" -e "GRANT ALL ON *.* TO '${USERNAME}'@'0.0.0.0' IDENTIFIED BY '${PASSWD}' WITH GRANT OPTION;"
+mysql --user="root" --password="${PASSWD}" -e "GRANT ALL ON *.* TO '${USERNAME}'@'%' IDENTIFIED BY '${PASSWD}' WITH GRANT OPTION;"
+mysql --user="root" --password="${PASSWD}" -e "FLUSH PRIVILEGES;"
+mysql --user="root" --password="${PASSWD}" -e "CREATE DATABASE ${USERNAME};"
 service mysql restart
 
 # Add Timezone Support To MySQL
 
-mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql --user=root --password=secret mysql
+mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql --user=root --password=${PASSWD} mysql
 
 # Install Postgres
 
@@ -264,7 +267,7 @@ mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql --user=root --password=secret my
 
 # sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/g" /etc/postgresql/9.4/main/postgresql.conf
 # echo "host all all 10.0.2.2/32 md5" | tee -a /etc/postgresql/9.4/main/pg_hba.conf
-# sudo -u postgres psql -c "CREATE ROLE ${USERNAME} LOGIN UNENCRYPTED PASSWORD 'secret' SUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
+# sudo -u postgres psql -c "CREATE ROLE ${USERNAME} LOGIN UNENCRYPTED PASSWORD '${PASSWD}' SUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
 # sudo -u postgres /usr/bin/createdb --echo --owner=${USERNAME} ${USERNAME}
 # service postgresql restart
 
@@ -297,10 +300,10 @@ alias h='cd ~'
 alias c='clear'
 
 function serve() {
-    if [[ "$1" && "$2" ]]
+    if [[ "\$1" && "\$2" ]]
     then
         sudo dos2unix ~/serve.sh
-        sudo bash ~/serve.sh "$1" "$2" 80
+        sudo bash ~/serve.sh "\$1" "\$2" 80
     else
         echo "Error: missing required parameters."
         echo "Usage: "

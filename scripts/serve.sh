@@ -8,21 +8,24 @@
 #--------------------------------------------------------------------------
 #
 # Get sudo permission
-# $ sudo -s
-#
-# Run.
-# # ./serve.sh example.com /path/to/document-root
+#   $ sudo -s
 #
 # TROUBLESHOOTING.
 #
-# If you encounter error message like "sudo: no tty present
-# and no askpass program specified ...", you can work around this error
-# by adding the following line on your production server's /etc/sudoers.
+#   If you encounter error message like "sudo: no tty present
+#   and no askpass program specified ...", you can work around this error
+#   by adding the following line on your production server's /etc/sudoers.
 #
-# $ sudo visudo
+#   # visudo
 #
-# deployer ALL=(ALL:ALL) NOPASSWD: ALL
-# %www-data ALL=(ALL:ALL) NOPASSWD:/usr/sbin/service php5-fpm restart
+#   deployer ALL=(ALL:ALL) NOPASSWD: ALL
+#   %www-data ALL=(ALL:ALL) NOPASSWD:/usr/sbin/service php5-fpm restart,/usr/sbin/service nginx restart
+#
+#--------------------------------------------------------------------------
+# How to run
+#--------------------------------------------------------------------------
+#
+#   # bash serve.sh example.com /path/to/document-root
 #
 
 mkdir /etc/nginx/ssl 2>/dev/null
