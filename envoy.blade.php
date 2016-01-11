@@ -98,8 +98,8 @@
   php {{ $path['base'] }}/officer.php deploy {{ $path['release'] }}/{{ $distribution['name'] }};
 
   {{--Restart web server.--}}
-  {{--service nginx restart;--}}
-  {{--service php5-fpm restart;--}}
+  service nginx restart;
+  service php5-fpm restart;
 @endtask
 
 
@@ -164,8 +164,8 @@
     php {{ $path['base'] }}/officer.php checkout {{ $release }};
 
     {{--Restart web server.--}}
-    {{--service nginx restart;--}}
-    {{--service php5-fpm restart;--}}
+    service nginx restart;
+    service php5-fpm restart;
   @else
     echo 'Must provide --release=/full/path/to/release.';
   @endif
