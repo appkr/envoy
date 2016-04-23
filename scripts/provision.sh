@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 
-# This script references
-# https://github.com/laravel/settler/blob/master/scripts/provision.sh
-#
-#--------------------------------------------------------------------------
 # Before run this script...
 #--------------------------------------------------------------------------
 #
 # Get sudo permission.
-#   $ sudo -s
+#   user@server:~$ sudo -s
 #
 # Add User and group.
-#   # adduser deployer
-#   # usermod -G www-data deployer
-#   # id deployer
-#   # groups www-data
+#   user@server:~# adduser deployer
+#   user@server:~# usermod -G www-data deployer
+#   user@server:~# id deployer
+#   user@server:~# groups www-data
 #
 # TROUBLESHOOTING.
 #
@@ -22,16 +18,18 @@
 #   and no askpass program specified ...", you can work around this error
 #   by adding the following line on your production server's /etc/sudoers.
 #
-#   # visudo
+#   user@server:~# visudo
+#
+#   Add following lines to the file and save.
 #
 #   deployer ALL=(ALL:ALL) NOPASSWD: ALL
-#   %www-data ALL=(ALL:ALL) NOPASSWD:/usr/sbin/service php5-fpm restart,/usr/sbin/service nginx restart
+#   %www-data ALL=(ALL:ALL) NOPASSWD:/usr/sbin/service php7.0-fpm restart,/usr/sbin/service nginx restart
 #
 #--------------------------------------------------------------------------
 # How to run
 #--------------------------------------------------------------------------
 #
-#   # bash provision.sh deployer password
+#   user@server:~# bash provision.sh deployer password | tee log.txt
 #
 
 if [[ -z "$1" ]]
@@ -65,7 +63,7 @@ apt-get install -y software-properties-common curl
 
 apt-add-repository ppa:nginx/stable -y
 apt-add-repository ppa:rwky/redis -y
-apt-add-repository ppa:ondrej/php5-5.6 -y
+apt-add-repository ppa:ondrej/php -y
 
 # gpg: key 5072E1F5: public key "MySQL Release Engineering <mysql-build@oss.oracle.com>" imported
 apt-key adv --keyserver ha.pool.sks-keyservers.net --recv-keys 5072E1F5
@@ -79,8 +77,22 @@ apt-get update
 
 # Install Some Basic Packages
 
-apt-get install -y --force-yes build-essential dos2unix gcc git libmcrypt4 libpcre3-dev \
-make python2.7-dev python-pip re2c supervisor unattended-upgrades whois vim libnotify-bin
+apt-get install -y --force-yes \
+    build-essential \
+    dos2unix \
+    gcc \
+    git \
+    libmcrypt4 \
+    libpcre3-dev \
+    make \
+    python2.7-dev \
+    python-pip \
+    re2c \
+    supervisor \
+    unattended-upgrades \
+    whois \
+    vim \
+    libnotify-bin;
 
 # Set My Timezone
 
@@ -88,26 +100,26 @@ ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 
 # Install PHP Stuffs
 
-apt-get install -y --force-yes php5-cli php5-dev php-pear \
-php5-mysqlnd php5-pgsql php5-sqlite \
-php5-apcu php5-json php5-curl php5-gd \
-php5-gmp php5-imap php5-mcrypt php5-xdebug \
-php5-memcached
-
-# Make MCrypt Available
-
-ln -s /etc/php5/conf.d/mcrypt.ini /etc/php5/mods-available
-php5enmod mcrypt
-
-# Install Mailparse PECL Extension
-
-pecl install mailparse-2.1.6
-echo "extension=mailparse.so" > /etc/php5/mods-available/mailparse.ini
-ln -s /etc/php5/mods-available/mailparse.ini /etc/php5/cli/conf.d/20-mailparse.ini
-
-# Install SSH Extension For PHP
-
-apt-get install -y --force-yes libssh2-1-dev libssh2-php
+apt-get install -y --force-yes \
+    php7.0-cli \
+    php7.0-dev \
+    php-pgsql \
+    php-sqlite3 \
+    php-gd \
+    php-apcu \
+    php-curl \
+    php7.0-mcrypt \
+    php-imap \
+    php-mysql \
+    php-memcached \
+    php7.0-readline \
+    php-xdebug \
+    php-mbstring \
+    php-xml \
+    php7.0-zip \
+    php7.0-intl \
+    php7.0-bcmath \
+    php-soap;
 
 # Install Composer
 
@@ -128,14 +140,17 @@ printf "\nAPP_ENV=production\n" | tee -a /home/${USERNAME}/.profile
 
 # Set Some PHP CLI Settings
 
-sed -i "s/error_reporting = .*/error_reporting = E_ALL/" /etc/php5/cli/php.ini
-sed -i "s/display_errors = .*/display_errors = Off/" /etc/php5/cli/php.ini
-sed -i "s/memory_limit = .*/memory_limit = 512M/" /etc/php5/cli/php.ini
-sed -i "s/;date.timezone.*/date.timezone = UTC/" /etc/php5/cli/php.ini
+sed -i "s/expose_php = .*/expose_php = Off/" /etc/php/7.0/cli/php.ini
+#sed -i "s/error_reporting = .*/error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT/" /etc/php/7.0/cli/php.ini
+sed -i "s/display_errors = .*/display_errors = Off/" /etc/php/7.0/cli/php.ini
+sed -i "s/memory_limit = .*/memory_limit = 512M/" /etc/php/7.0/cli/php.ini
+sed -i "s/upload_max_filesize = .*/upload_max_filesize = 100M/" /etc/php/7.0/fpm/php.ini
+sed -i "s/post_max_size = .*/post_max_size = 100M/" /etc/php/7.0/fpm/php.ini
+sed -i "s/;date.timezone.*/date.timezone = UTC/" /etc/php/7.0/cli/php.ini
 
 # Install Nginx & PHP-FPM
 
-apt-get install -y --force-yes nginx php5-fpm
+apt-get install -y --force-yes nginx php7.0-fpm
 
 rm /etc/nginx/sites-enabled/default
 rm /etc/nginx/sites-available/default
@@ -143,10 +158,10 @@ service nginx restart
 
 # Add The HHVM Key & Repository
 
-# wget -O - http://dl.hhvm.com/conf/hhvm.gpg.key | apt-key add -
-# echo deb http://dl.hhvm.com/ubuntu trusty main | tee /etc/apt/sources.list.d/hhvm.list
-# apt-get update
-# apt-get install -y hhvm
+#wget -O - http://dl.hhvm.com/conf/hhvm.gpg.key | apt-key add -
+#echo deb http://dl.hhvm.com/ubuntu trusty main | tee /etc/apt/sources.list.d/hhvm.list
+#apt-get update
+#apt-get install -y hhvm
 
 # Configure HHVM To Run As Homestead
 
@@ -156,19 +171,18 @@ service nginx restart
 
 # Start HHVM On System Start
 
-# update-rc.d hhvm defaults
+#update-rc.d hhvm defaults
 
 # Setup Some PHP-FPM Options
 
-ln -s /etc/php5/mods-available/mailparse.ini /etc/php5/fpm/conf.d/20-mailparse.ini
-
-sed -i "s/error_reporting = .*/error_reporting = E_ALL/" /etc/php5/fpm/php.ini
-sed -i "s/display_errors = .*/display_errors = OFF/" /etc/php5/fpm/php.ini
-sed -i "s/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/" /etc/php5/fpm/php.ini
-sed -i "s/memory_limit = .*/memory_limit = 512M/" /etc/php5/fpm/php.ini
-sed -i "s/upload_max_filesize = .*/upload_max_filesize = 100M/" /etc/php5/fpm/php.ini
-sed -i "s/post_max_size = .*/post_max_size = 100M/" /etc/php5/fpm/php.ini
-sed -i "s/;date.timezone.*/date.timezone = UTC/" /etc/php5/fpm/php.ini
+sed -i "s/expose_php = .*/expose_php = Off/" /etc/php/7.0/fpm/php.ini
+#sed -i "s/error_reporting = .*/error_reporting = E_ALL/" /etc/php/7.0/fpm/php.ini
+sed -i "s/display_errors = .*/display_errors = On/" /etc/php/7.0/fpm/php.ini
+sed -i "s/memory_limit = .*/memory_limit = 512M/" /etc/php/7.0/fpm/php.ini
+sed -i "s/upload_max_filesize = .*/upload_max_filesize = 100M/" /etc/php/7.0/fpm/php.ini
+sed -i "s/post_max_size = .*/post_max_size = 100M/" /etc/php/7.0/fpm/php.ini
+sed -i "s/;date.timezone.*/date.timezone = UTC/" /etc/php/7.0/fpm/php.ini
+sed -i "s/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/" /etc/php/7.0/fpm/php.ini
 
 #echo "xdebug.remote_enable = 1" >> /etc/php5/fpm/conf.d/20-xdebug.ini
 #echo "xdebug.remote_connect_back = 1" >> /etc/php5/fpm/conf.d/20-xdebug.ini
@@ -178,25 +192,25 @@ sed -i "s/;date.timezone.*/date.timezone = UTC/" /etc/php5/fpm/php.ini
 # Copy fastcgi_params to Nginx because they broke it on the PPA
 
 cat > /etc/nginx/fastcgi_params << EOF
-fastcgi_param    QUERY_STRING         \$query_string;
-fastcgi_param    REQUEST_METHOD       \$request_method;
-fastcgi_param    CONTENT_TYPE         \$content_type;
-fastcgi_param    CONTENT_LENGTH       \$content_length;
-fastcgi_param    SCRIPT_FILENAME      \$request_filename;
-fastcgi_param    SCRIPT_NAME          \$fastcgi_script_name;
-fastcgi_param    REQUEST_URI          \$request_uri;
-fastcgi_param    DOCUMENT_URI         \$document_uri;
-fastcgi_param    DOCUMENT_ROOT        \$document_root;
-fastcgi_param    SERVER_PROTOCOL      \$server_protocol;
-fastcgi_param    GATEWAY_INTERFACE    CGI/1.1;
-fastcgi_param    SERVER_SOFTWARE      nginx/\$nginx_version;
-fastcgi_param    REMOTE_ADDR          \$remote_addr;
-fastcgi_param    REMOTE_PORT          \$remote_port;
-fastcgi_param    SERVER_ADDR          \$server_addr;
-fastcgi_param    SERVER_PORT          \$server_port;
-fastcgi_param    SERVER_NAME          \$server_name;
-fastcgi_param    HTTPS                \$https if_not_empty;
-fastcgi_param    REDIRECT_STATUS      200;
+fastcgi_param	QUERY_STRING		\$query_string;
+fastcgi_param	REQUEST_METHOD		\$request_method;
+fastcgi_param	CONTENT_TYPE		\$content_type;
+fastcgi_param	CONTENT_LENGTH		\$content_length;
+fastcgi_param	SCRIPT_FILENAME		\$request_filename;
+fastcgi_param	SCRIPT_NAME		    \$fastcgi_script_name;
+fastcgi_param	REQUEST_URI		    \$request_uri;
+fastcgi_param	DOCUMENT_URI		\$document_uri;
+fastcgi_param	DOCUMENT_ROOT		\$document_root;
+fastcgi_param	SERVER_PROTOCOL		\$server_protocol;
+fastcgi_param	GATEWAY_INTERFACE	CGI/1.1;
+fastcgi_param	SERVER_SOFTWARE		nginx/\$nginx_version;
+fastcgi_param	REMOTE_ADDR		    \$remote_addr;
+fastcgi_param	REMOTE_PORT		    \$remote_port;
+fastcgi_param	SERVER_ADDR		    \$server_addr;
+fastcgi_param	SERVER_PORT		    \$server_port;
+fastcgi_param	SERVER_NAME		    \$server_name;
+fastcgi_param	HTTPS			    \$https if_not_empty;
+fastcgi_param	REDIRECT_STATUS		200;
 EOF
 
 # Set The Nginx & PHP-FPM User
@@ -204,27 +218,27 @@ EOF
 sed -i "s/user www-data;/user ${USERNAME};/" /etc/nginx/nginx.conf
 sed -i "s/# server_names_hash_bucket_size.*/server_names_hash_bucket_size 64;/" /etc/nginx/nginx.conf
 
-sed -i "s/user = www-data/user = ${USERNAME}/" /etc/php5/fpm/pool.d/www.conf
-sed -i "s/group = www-data/group = ${USERNAME}/" /etc/php5/fpm/pool.d/www.conf
+sed -i "s/user = www-data/user = ${USERNAME}/" /etc/php/7.0/fpm/pool.d/www.conf
+sed -i "s/group = www-data/group = ${USERNAME}/" /etc/php/7.0/fpm/pool.d/www.conf
 
-sed -i "s/listen\.owner.*/listen.owner = ${USERNAME}/" /etc/php5/fpm/pool.d/www.conf
-sed -i "s/listen\.group.*/listen.group = ${USERNAME}/" /etc/php5/fpm/pool.d/www.conf
-sed -i "s/;listen\.mode.*/listen.mode = 0666/" /etc/php5/fpm/pool.d/www.conf
+sed -i "s/listen\.owner.*/listen.owner = ${USERNAME}/" /etc/php/7.0/fpm/pool.d/www.conf
+sed -i "s/listen\.group.*/listen.group = ${USERNAME}/" /etc/php/7.0/fpm/pool.d/www.conf
+sed -i "s/;listen\.mode.*/listen.mode = 0666/" /etc/php/7.0/fpm/pool.d/www.conf
 
 service nginx restart
-service php5-fpm restart
+service php7.0-fpm restart
 
 # Add User To WWW-Data
 
-usermod -a -G www-data $USERNAME
-id $USERNAME
-groups www-data
+#usermod -a -G www-data $USERNAME
+#id $USERNAME
+#groups www-data
 
 # Install Node
 
 apt-get install -y --force-yes nodejs
-/usr/bin/npm install -g gulp
-/usr/bin/npm install -g bower
+#/usr/bin/npm install -g gulp
+#/usr/bin/npm install -g bower
 
 # Install SQLite
 
@@ -235,7 +249,7 @@ apt-get install -y --force-yes sqlite3 libsqlite3-dev
 debconf-set-selections <<< "mysql-community-server mysql-community-server/data-dir select ''"
 debconf-set-selections <<< "mysql-community-server mysql-community-server/root-pass password ${PASSWD}"
 debconf-set-selections <<< "mysql-community-server mysql-community-server/re-root-pass password ${PASSWD}"
-apt-get install -y --force-yes mysql-server
+apt-get install -y mysql-server
 
 # Configure MySQL Password Lifetime
 
@@ -252,7 +266,7 @@ mysql --user="root" --password="${PASSWD}" -e "CREATE USER '${USERNAME}'@'0.0.0.
 mysql --user="root" --password="${PASSWD}" -e "GRANT ALL ON *.* TO '${USERNAME}'@'0.0.0.0' IDENTIFIED BY '${PASSWD}' WITH GRANT OPTION;"
 mysql --user="root" --password="${PASSWD}" -e "GRANT ALL ON *.* TO '${USERNAME}'@'%' IDENTIFIED BY '${PASSWD}' WITH GRANT OPTION;"
 mysql --user="root" --password="${PASSWD}" -e "FLUSH PRIVILEGES;"
-mysql --user="root" --password="${PASSWD}" -e "CREATE DATABASE ${USERNAME};"
+#mysql --user="root" --password="${PASSWD}" -e "CREATE DATABASE ${USERNAME};"
 service mysql restart
 
 # Add Timezone Support To MySQL
@@ -261,23 +275,24 @@ mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql --user=root --password=${PASSWD}
 
 # Install Postgres
 
-# apt-get install -y postgresql-9.4 postgresql-contrib-9.4
+apt-get install -y postgresql-9.5 postgresql-contrib-9.5
 
 # Configure Postgres Remote Access
 
-# sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/g" /etc/postgresql/9.4/main/postgresql.conf
-# echo "host all all 10.0.2.2/32 md5" | tee -a /etc/postgresql/9.4/main/pg_hba.conf
-# sudo -u postgres psql -c "CREATE ROLE ${USERNAME} LOGIN UNENCRYPTED PASSWORD '${PASSWD}' SUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
-# sudo -u postgres /usr/bin/createdb --echo --owner=${USERNAME} ${USERNAME}
-# service postgresql restart
+echo "host all all 10.0.2.2/32 md5" | tee -a /etc/postgresql/9.5/main/pg_hba.conf
+sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/g" /etc/postgresql/9.5/main/postgresql.conf
+echo "host all all 10.0.2.2/32 md5" | tee -a /etc/postgresql/9.5/main/pg_hba.conf
+sudo -u postgres psql -c "CREATE ROLE ${USERNAME} LOGIN UNENCRYPTED PASSWORD '${PASSWD}' SUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;"
+sudo -u postgres /usr/bin/createdb --echo --owner=${USERNAME} ${USERNAME}
+service postgresql restart
 
 # Install Blackfire
 
-# apt-get install -y --force-yes blackfire-agent blackfire-php
+# apt-get install -y blackfire-agent blackfire-php
 
 # Install A Few Other Things
 
-apt-get install -y --force-yes memcached beanstalkd #redis-server
+apt-get install -y redis-server memcached beanstalkd
 
 # Configure Beanstalkd
 
