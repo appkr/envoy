@@ -86,8 +86,8 @@
   ln -nfs {{ $release_dir }}/{{ $distname }} {{ $project_root }};
 
   {{--Set permission and change owner--}}
-  chmod -R 777 {{ $shared_dir }}/storage;
-  chmod -R 777 {{ $shared_dir }}/cache;
+  chmod -R 775 {{ $shared_dir }}/storage;
+  chmod -R 775 {{ $shared_dir }}/cache;
   chgrp -h -R www-data {{ $release_dir }}/{{ $distname }};
 
   {{--Book keeping--}}
