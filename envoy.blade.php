@@ -1,4 +1,4 @@
-#--------------------------------------------------------------------------
+##--------------------------------------------------------------------------
 # List of tasks, that you can run...
 # e.g. envoy run hello
 #--------------------------------------------------------------------------
@@ -13,16 +13,17 @@
 # Note that the server shoulbe be accessible through ssh with 'username' account
 # $ ssh username@hostname
 #--------------------------------------------------------------------------
-#
+##
 
-@servers(['web' => 'aws-seoul-deploy'])
+@servers(['vm' => 'deployer@envoy.vm'])
 
 
 @setup
   $username = 'deployer';                       // username at the server
-  $remote = 'git@github.com:appkr/envoy.git';   // github repository to clone
+  $remote = 'https://github.com/appkr/envoy.git';
+  // $remote = 'git@github.com:appkr/envoy.git';   // github repository to clone
   $base_dir = "/home/{$username}/www";          // document that holds projects
-  $project_root = "{$base_dir}/envoy.appkr.kr"; // project root
+  $project_root = "{$base_dir}/envoy.vm";       // project root
   $shared_dir = "{$base_dir}/shared";           // directory that will house shared dir/files
   $release_dir = "{$base_dir}/releases";        // release directory
   $distname = 'release_' . date('YmdHis');      // release name
@@ -44,13 +45,13 @@
 @endsetup
 
 
-@task('hello', ['on' => ['web']])
+@task('hello', ['on' => ['vm']])
   HOSTNAME=$(hostname);
   echo "Hello Envoy! Responding from $HOSTNAME";
 @endtask
 
 
-@task('deploy', ['on' => ['web']])
+@task('deploy', ['on' => ['vm']])
   {{--Create directories if not exists--}}
   @foreach ($required_dirs as $dir)
     [ ! -d {{ $dir }} ] && mkdir -p {{ $dir }};
@@ -64,20 +65,29 @@
   {{--Clone code from git--}}
   cd {{ $release_dir }} && git clone -b master {{ $remote }} {{ $distname }};
 
-  [ ! -f {{ $shared_dir }}/.env ] && cp {{ $release_dir }}/{{ $distname }}/.env.example {{ $shared_dir }}/.env;
-  [ ! -d {{ $shared_dir }}/storage ] && cp -R {{ $release_dir }}/{{ $distname }}/storage {{ $shared_dir }};
-  [ ! -d {{ $shared_dir }}/cache ] && cp -R {{ $release_dir }}/{{ $distname }}/bootstrap/cache {{ $shared_dir }};
+  [ ! -f {{ $shared_dir }}/.env ] && \
+    [ -f {{ $release_dir }}/{{ $distname }}/.env.example ] && \
+    cp {{ $release_dir }}/{{ $distname }}/.env.example {{ $shared_dir }}/.env;
+  [ ! -d {{ $shared_dir }}/storage ] && \
+    [ -d {{ $release_dir }}/{{ $distname }}/storage ] && \
+    cp -R {{ $release_dir }}/{{ $distname }}/storage {{ $shared_dir }};
+  [ ! -d {{ $shared_dir }}/cache ] && \
+    [ -d {{ $release_dir }}/{{ $distname }}/bootstrap/cache ] && \
+    cp -R {{ $release_dir }}/{{ $distname }}/bootstrap/cache {{ $shared_dir }};
 
   {{--Symlink shared directory to current release.--}}
   {{--e.g. storage, .env, user uploaded file storage, ...--}}
   @foreach($shared_item as $global => $local)
     [ -f {{ $local }} ] && rm {{ $local }};
     [ -d {{ $local }} ] && rm -rf {{ $local }};
-    ln -nfs {{ $global }} {{ $local }};
+    [ -f {{ $global }} ] && ln -nfs {{ $global }} {{ $local }};
+    [ -d {{ $global }} ] && ln -nfs {{ $global }} {{ $local }};
   @endforeach
 
   {{--Run composer install--}}
-  cd {{ $release_dir }}/{{ $distname }} && composer install --prefer-dist --no-scripts --no-dev;
+  cd {{ $release_dir }}/{{ $distname }} && \
+    [ -f ./composer.json ] && \
+    composer install --prefer-dist --no-scripts --no-dev;
 
   {{--Any additional command here--}}
   {{--e.g. php artisan clear-compiled;--}}
@@ -86,8 +96,10 @@
   ln -nfs {{ $release_dir }}/{{ $distname }} {{ $project_root }};
 
   {{--Set permission and change owner--}}
-  chmod -R 775 {{ $shared_dir }}/storage;
-  chmod -R 775 {{ $shared_dir }}/cache;
+  [ -d {{ $shared_dir }}/storage ] && \
+    chmod -R 775 {{ $shared_dir }}/storage;
+  [ -d {{ $shared_dir }}/cache ] && \
+    chmod -R 775 {{ $shared_dir }}/cache;
   chgrp -h -R www-data {{ $release_dir }}/{{ $distname }};
 
   {{--Book keeping--}}
@@ -99,7 +111,7 @@
 @endtask
 
 
-@task('prune', ['on' => 'web'])
+@task('prune', ['on' => 'vm'])
   if [ ! -f {{ $base_dir }}/officer.php ]; then
     echo '"officer.php" script not found.';
     echo '\$ envoy run hire_officer';
@@ -114,14 +126,14 @@
 @endtask
 
 
-@task('hire_officer', ['on' => 'web'])
+@task('hire_officer', ['on' => 'vm'])
   {{--Download "officer.php" to the server--}}
   wget https://raw.githubusercontent.com/appkr/envoy/master/scripts/officer.php -O {{ $base_dir }}/officer.php;
   echo '"officer.php" is ready! Ready to roll master!';
 @endtask
 
 
-@task('list', ['on' => 'web'])
+@task('list', ['on' => 'vm'])
   {{--Show the list of release--}}
   if [ ! -f {{ $base_dir }}/officer.php ]; then
     echo '"officer.php" script not found.';
@@ -133,7 +145,7 @@
 @endtask
 
 
-@task('checkout', ['on' => 'web'])
+@task('checkout', ['on' => 'vm'])
   {{--checkout to the given release path--}}
   if [ ! -f {{ $base_dir }}/officer.php ]; then
     echo '"officer.php" script not found.';
